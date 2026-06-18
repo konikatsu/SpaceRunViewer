@@ -4,8 +4,10 @@ namespace SpaceRunViewer;
 
 public sealed class MainForm : Form
 {
+    private const string AppVersion = "0.1.2";
     private const int LinePrefixLength = 8;
-    private const int ResultGridMinimumVisibleRows = 3;
+    private const int PaneMinimumHeight = 40;
+    private const int InitialResultGridHeight = 104;
 
     private readonly TextBox filePathTextBox = new();
     private readonly ComboBox encodingComboBox = new();
@@ -37,9 +39,9 @@ public sealed class MainForm : Form
 
     private void BuildLayout()
     {
-        Text = "SpaceRunViewer";
+        Text = $"SpaceRunViewer v{AppVersion}";
         StartPosition = FormStartPosition.CenterScreen;
-        MinimumSize = new Size(900, 560);
+        MinimumSize = new Size(900, 320);
         ClientSize = new Size(1200, 760);
 
         var topPanel = new TableLayoutPanel
@@ -84,11 +86,12 @@ public sealed class MainForm : Form
 
         topPanel.Controls.Add(new Label { Text = "ファイル", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(4, 7, 8, 4) }, 0, 0);
         topPanel.Controls.Add(filePathTextBox, 1, 0);
-        topPanel.Controls.Add(selectButton, 2, 0);
-        AddLabeledControl(topPanel, "文字コード", encodingComboBox, 3);
-        topPanel.Controls.Add(halfSpaceCheckBox, 4, 0);
-        topPanel.Controls.Add(fullSpaceCheckBox, 5, 0);
-        topPanel.Controls.Add(tabCheckBox, 6, 0);
+        topPanel.SetColumnSpan(filePathTextBox, 5);
+        topPanel.Controls.Add(selectButton, 6, 0);
+        AddLabeledControl(topPanel, "文字コード", encodingComboBox, 1);
+        topPanel.Controls.Add(halfSpaceCheckBox, 2, 1);
+        topPanel.Controls.Add(fullSpaceCheckBox, 3, 1);
+        topPanel.Controls.Add(tabCheckBox, 4, 1);
         topPanel.Controls.Add(analyzeButton, 6, 1);
 
         summaryLabel.Dock = DockStyle.Top;
@@ -118,8 +121,9 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            Panel1MinSize = 120,
-            Panel2MinSize = GetResultGridMinimumHeight(),
+            Panel1MinSize = PaneMinimumHeight,
+            Panel2MinSize = PaneMinimumHeight,
+            SplitterWidth = 6,
         };
         splitContainer.Panel1.Controls.Add(textPanel);
         splitContainer.Panel2.Controls.Add(resultGrid);
@@ -128,14 +132,8 @@ public sealed class MainForm : Form
         Controls.Add(summaryLabel);
         Controls.Add(topPanel);
 
-        Load += (_, _) => SetResultGridHeight(splitContainer, splitContainer.Panel2MinSize);
+        Load += (_, _) => SetResultGridHeight(splitContainer, InitialResultGridHeight);
     }
-
-    private int GetResultGridMinimumHeight() =>
-        resultGrid.ColumnHeadersHeight
-        + resultGrid.RowTemplate.Height * ResultGridMinimumVisibleRows
-        + SystemInformation.HorizontalScrollBarHeight
-        + 4;
 
     private static void SetResultGridHeight(SplitContainer splitContainer, int height)
     {
@@ -236,7 +234,7 @@ public sealed class MainForm : Form
 
         if (dialog.ShowDialog(this) == DialogResult.OK)
         {
-            filePathTextBox.Text = dialog.FileName;
+            SetFilePath(dialog.FileName);
         }
     }
 
@@ -247,8 +245,16 @@ public sealed class MainForm : Form
             return;
         }
 
-        filePathTextBox.Text = startupArgs[0];
+        SetFilePath(startupArgs[0]);
         AnalyzeFile();
+    }
+
+    private void SetFilePath(string filePath)
+    {
+        filePathTextBox.Text = filePath;
+        filePathTextBox.SelectionStart = filePathTextBox.TextLength;
+        filePathTextBox.SelectionLength = 0;
+        filePathTextBox.ScrollToCaret();
     }
 
     private void AnalyzeFile()

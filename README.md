@@ -30,7 +30,7 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 
 最新版は GitHub Releases からダウンロードできます。
 
-[SpaceRunViewer-v0.1.1-win-x64.zip をダウンロード](https://github.com/konikatsu/SpaceRunViewer/releases/download/v0.1.1/SpaceRunViewer-v0.1.1-win-x64.zip)
+[SpaceRunViewer-v0.1.2-win-x64.zip をダウンロード](https://github.com/konikatsu/SpaceRunViewer/releases/download/v0.1.2/SpaceRunViewer-v0.1.2-win-x64.zip)
 
 zip を展開して、`SpaceRunViewer.exe` を起動してください。
 
