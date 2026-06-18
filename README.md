@@ -26,6 +26,17 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 
 ![SpaceRunViewer screenshot](assets/space-run-viewer.png)
 
+## ダウンロード
+
+最新版は [Releases](https://github.com/konikatsu/SpaceRunViewer/releases) からダウンロードできます。
+
+1. Releases の最新バージョンを開きます。
+2. `SpaceRunViewer-v0.1.0-win-x64.zip` をダウンロードします。
+3. zip ファイルを任意のフォルダーに展開します。
+4. 展開したフォルダー内の `SpaceRunViewer.exe` を実行します。
+
+この配布版は .NET 8 Desktop Runtime が必要です。未インストールの場合は、Microsoft 公式サイトから .NET 8 Desktop Runtime をインストールしてください。
+
 ## 使い方
 
 1. ファイルを選択します。
