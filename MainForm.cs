@@ -5,6 +5,7 @@ namespace SpaceRunViewer;
 public sealed class MainForm : Form
 {
     private const int LinePrefixLength = 8;
+    private const int ResultGridMinimumVisibleRows = 3;
 
     private readonly TextBox filePathTextBox = new();
     private readonly ComboBox encodingComboBox = new();
@@ -117,7 +118,8 @@ public sealed class MainForm : Form
         {
             Dock = DockStyle.Fill,
             Orientation = Orientation.Horizontal,
-            SplitterDistance = 420,
+            Panel1MinSize = 120,
+            Panel2MinSize = GetResultGridMinimumHeight(),
         };
         splitContainer.Panel1.Controls.Add(textPanel);
         splitContainer.Panel2.Controls.Add(resultGrid);
@@ -125,6 +127,26 @@ public sealed class MainForm : Form
         Controls.Add(splitContainer);
         Controls.Add(summaryLabel);
         Controls.Add(topPanel);
+
+        Load += (_, _) => SetResultGridHeight(splitContainer, splitContainer.Panel2MinSize);
+    }
+
+    private int GetResultGridMinimumHeight() =>
+        resultGrid.ColumnHeadersHeight
+        + resultGrid.RowTemplate.Height * ResultGridMinimumVisibleRows
+        + SystemInformation.HorizontalScrollBarHeight
+        + 4;
+
+    private static void SetResultGridHeight(SplitContainer splitContainer, int height)
+    {
+        var maxDistance = splitContainer.Height - splitContainer.SplitterWidth - splitContainer.Panel2MinSize;
+        if (maxDistance < splitContainer.Panel1MinSize)
+        {
+            return;
+        }
+
+        var distance = splitContainer.Height - splitContainer.SplitterWidth - height;
+        splitContainer.SplitterDistance = Math.Clamp(distance, splitContainer.Panel1MinSize, maxDistance);
     }
 
     private static Button CreateButton(string text) => new()
