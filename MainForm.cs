@@ -4,7 +4,7 @@ namespace SpaceRunViewer;
 
 public sealed class MainForm : Form
 {
-    private const string AppVersion = "0.1.2";
+    private const string AppVersion = "0.1.3";
     private const int LinePrefixLength = 8;
     private const int PaneMinimumHeight = 40;
     private const int InitialResultGridHeight = 104;
@@ -14,6 +14,8 @@ public sealed class MainForm : Form
     private readonly CheckBox halfSpaceCheckBox = new();
     private readonly CheckBox fullSpaceCheckBox = new();
     private readonly CheckBox tabCheckBox = new();
+    private readonly CheckBox fixedLengthCheckBox = new();
+    private readonly NumericUpDown recordByteLengthInput = new();
     private readonly Label summaryLabel = new();
     private readonly SyncRichTextBox rulerView = new();
     private readonly SyncRichTextBox textView = new();
@@ -50,7 +52,7 @@ public sealed class MainForm : Form
             AutoSize = true,
             Padding = new Padding(8),
             ColumnCount = 7,
-            RowCount = 2,
+            RowCount = 3,
         };
         topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         topPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
@@ -93,6 +95,36 @@ public sealed class MainForm : Form
         topPanel.Controls.Add(fullSpaceCheckBox, 3, 1);
         topPanel.Controls.Add(tabCheckBox, 4, 1);
         topPanel.Controls.Add(analyzeButton, 6, 1);
+
+        fixedLengthCheckBox.Text = "固定長（改行なし）";
+        fixedLengthCheckBox.AutoSize = true;
+        fixedLengthCheckBox.Margin = new Padding(4, 7, 12, 4);
+        recordByteLengthInput.Minimum = 1;
+        recordByteLengthInput.Maximum = 1_000_000;
+        recordByteLengthInput.Value = 109;
+        recordByteLengthInput.Width = 110;
+        recordByteLengthInput.ThousandsSeparator = true;
+        var recordSizeOptions = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = false,
+            Margin = Padding.Empty,
+            Enabled = false,
+        };
+        recordSizeOptions.Controls.Add(new Label { Text = "1行のサイズ", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
+        recordSizeOptions.Controls.Add(recordByteLengthInput);
+        recordSizeOptions.Controls.Add(new Label { Text = "バイト", AutoSize = true, Padding = new Padding(0, 6, 0, 0) });
+        fixedLengthCheckBox.CheckedChanged += (_, _) => recordSizeOptions.Enabled = fixedLengthCheckBox.Checked;
+        var recordModePanel = new FlowLayoutPanel
+        {
+            AutoSize = true,
+            WrapContents = false,
+            Margin = new Padding(4, 0, 4, 0),
+        };
+        recordModePanel.Controls.Add(fixedLengthCheckBox);
+        recordModePanel.Controls.Add(recordSizeOptions);
+        topPanel.Controls.Add(recordModePanel, 0, 2);
+        topPanel.SetColumnSpan(recordModePanel, 7);
 
         summaryLabel.Dock = DockStyle.Top;
         summaryLabel.AutoSize = false;
@@ -280,12 +312,16 @@ public sealed class MainForm : Form
         try
         {
             var encoding = GetSelectedEncoding();
-            var lines = File.ReadAllLines(filePathTextBox.Text, encoding);
+            int? recordByteLength = fixedLengthCheckBox.Checked ? (int)recordByteLengthInput.Value : null;
+            var result = TextFileReader.Read(filePathTextBox.Text, encoding, recordByteLength);
+            var lines = result.Lines;
             currentRuns = AnalyzeLines(lines);
             RenderRuler(lines);
             RenderText(lines);
             RenderGrid();
-            summaryLabel.Text = $"{lines.Length:N0} 行 / 空白箇所 {currentRuns.Count:N0} 件 / 空白文字数 {currentRuns.Sum(run => run.Length):N0} 文字";
+            var mode = recordByteLength is { } size ? $"固定長 {size:N0} バイト/行 / " : string.Empty;
+            var partial = result.PartialRecordBytes > 0 ? $" / 末尾レコード {result.PartialRecordBytes:N0} バイト（指定サイズ未満）" : string.Empty;
+            summaryLabel.Text = $"{mode}{lines.Length:N0} 行 / 空白箇所 {currentRuns.Count:N0} 件 / 空白文字数 {currentRuns.Sum(run => run.Length):N0} 文字{partial}";
         }
         catch (Exception ex)
         {

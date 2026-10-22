@@ -21,6 +21,7 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
   - 前後の文字
 - 一覧の行を選択すると、本文側の該当空白を強調
 - Shift_JIS / UTF-8 に対応
+- 改行なしの固定長ファイルは、1行のサイズをバイト数で指定して解析可能
 
 ## 画面イメージ
 
@@ -28,7 +29,7 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 
 ## ダウンロード
 
-最新版は GitHub Releases からダウンロードできます。
+公開済みの配布版は GitHub Releases からダウンロードできます。下記のv0.1.2には固定長モードは含まれません。固定長に対応したv0.1.3のソースは、このリポジトリに含まれます。
 
 [SpaceRunViewer-v0.1.2-win-x64.zip をダウンロード](https://github.com/konikatsu/SpaceRunViewer/releases/download/v0.1.2/SpaceRunViewer-v0.1.2-win-x64.zip)
 
@@ -48,6 +49,19 @@ zip を展開して、`SpaceRunViewer.exe` を起動してください。
 4. `解析` ボタンを押します。
 5. 下段の一覧で、空白の開始桁と文字数を確認します。
 
+### 改行なしの固定長ファイル
+
+1. ファイルと文字コードを選択します。
+2. `固定長（改行なし）` をオンにします。
+3. `1行のサイズ` にレコードのバイト数を指定します（例：`109`）。
+4. `解析` を押すと、指定バイト数ごとに行を区切って表示・解析します。元のファイルには改行を追加しません。
+
+UTF-8のBOMはレコードのバイト数に含めません。末尾が指定サイズに満たない場合は、残りも最後の行として表示し、上部にそのバイト数を表示します。文字の途中にレコード境界が入る場合は、文字化けした内容を表示せず、サイズと文字コードの確認を案内します。
+
+`samples/fixed-109-utf8.txt` は、109バイト×2件・改行なし・UTF-8/BOMなしのサンプルです。1件目の末尾空白14文字と2件目の先頭空白10文字を、別々の空白ブロックとして確認できます。
+
+指定する行サイズはバイト数です。空白一覧の開始桁・終了桁・文字数は従来どおり文字単位です。改行があるファイルは、固定長をオフにして従来の方法で解析します。
+
 ## 開発者向け
 
 ### ビルド
@@ -60,4 +74,18 @@ dotnet build .\SpaceRunViewer.csproj
 
 ```powershell
 dotnet run --project .\SpaceRunViewer.csproj
+```
+
+### Windows x64向けの配布版を作成
+
+```powershell
+dotnet publish .\SpaceRunViewer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o .\publish\SpaceRunViewer-v0.1.3-win-x64
+```
+
+この方法で作る実行ファイルは.NETランタイムを含むため、配布先へ.NETを別途インストールせずに起動できます。
+
+### テスト
+
+```powershell
+dotnet run --project .\tests\SpaceRunViewer.Tests\SpaceRunViewer.Tests.csproj
 ```

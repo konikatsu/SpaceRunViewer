@@ -6,12 +6,13 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version>0.1.2</Version>
-    <FileVersion>0.1.2.0</FileVersion>
-    <AssemblyVersion>0.1.2.0</AssemblyVersion>
+    <Version>0.1.3</Version>
+    <FileVersion>0.1.3.0</FileVersion>
+    <AssemblyVersion>0.1.3.0</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="tests\**\*.cs" />
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
 
