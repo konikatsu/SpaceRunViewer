@@ -8,10 +8,12 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 
 | 提供形態 | バージョン | 固定長ファイルの解析 |
 | --- | --- | --- |
-| このリポジトリの最新ソース（main） | v0.1.3 | 対応。画面で1行のバイト数を指定できます。 |
-| GitHub Releases の公開配布版 | v0.1.3 | 対応。Windows x64 向けの実行ファイルをダウンロードできます。 |
+| このリポジトリの最新ソース（main） | v0.1.4 | 対応。画面で1行のバイト数を指定できます。 |
+| GitHub Releases の公開配布版 | v0.1.4 | 対応。Windows x64 向けの軽量版をダウンロードできます。 |
 
 固定長対応は v0.1.3 で追加しました。v0.1.2 以前を利用している場合は、下記の配布版に更新してください。
+
+v0.1.4 では、ズーム時に本文・ルーラー・空白一覧の文字サイズが連動するように修正しました。
 
 ## 主な機能
 
@@ -31,6 +33,7 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 - 一覧の行を選択すると、本文側の該当空白を強調
 - Shift_JIS / UTF-8 に対応
 - 改行なしの固定長ファイルは、1行のサイズをバイト数で指定して解析可能
+- 本文・ルーラー・空白一覧の文字サイズを連動して拡大・縮小
 
 ## 画面イメージ
 
@@ -38,20 +41,17 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 
 ## ダウンロード
 
-**v0.1.3（1行のバイト数指定に対応）** は [GitHub Releases](https://github.com/konikatsu/SpaceRunViewer/releases/tag/v0.1.3) からダウンロードできます。
+**v0.1.4（ズーム同期を修正・1行のバイト数指定に対応）** は [GitHub Releases](https://github.com/konikatsu/SpaceRunViewer/releases/tag/v0.1.4) からダウンロードできます。
 
-| 配布版 | ダウンロード | .NET の追加インストール |
-| --- | --- | --- |
-| 軽量版（v0.1.2 と同じ配布形式） | [SpaceRunViewer-v0.1.3-win-x64-framework-dependent.zip](https://github.com/konikatsu/SpaceRunViewer/releases/download/v0.1.3/SpaceRunViewer-v0.1.3-win-x64-framework-dependent.zip) | .NET 8 Desktop Runtime（x64）が必要 |
-| .NET 同梱版 | [SpaceRunViewer-v0.1.3-win-x64.zip](https://github.com/konikatsu/SpaceRunViewer/releases/download/v0.1.3/SpaceRunViewer-v0.1.3-win-x64.zip) | 不要 |
+[SpaceRunViewer-v0.1.4-win-x64-framework-dependent.zip をダウンロード](https://github.com/konikatsu/SpaceRunViewer/releases/download/v0.1.4/SpaceRunViewer-v0.1.4-win-x64-framework-dependent.zip)
 
-どちらも Windows x64 向けで、1行のバイト数を指定できます。ZIP 内のフォルダーを丸ごと展開して、`SpaceRunViewer.exe` を起動してください。軽量版では、EXE と同じフォルダーにある DLL や JSON ファイルも必要です。
+Windows x64 向けの軽量版です。ZIP 内のフォルダーを丸ごと展開して、`SpaceRunViewer.exe` を起動してください。EXE と同じフォルダーにある DLL や JSON ファイルも必要です。
 
 軽量版で .NET が不足している場合は、[Microsoft 公式の .NET 8 ダウンロードページ](https://dotnet.microsoft.com/download/dotnet/8.0) から **.NET Desktop Runtime の Windows x64 版**をインストールしてください。v0.1.2 が動作していた PC では、通常は同じランタイムを利用できます。
 
 固定長ファイルを解析するときは、`固定長（改行なし）` をオンにして、`1行のサイズ` にバイト数を入力します。`samples` フォルダーには動作確認用のサンプルを同梱しています。
 
-どちらの配布版もコード署名は付いていません。Windows の Smart App Control による起動可否は環境やファイルの判定によるため、軽量版でもブロックされる場合があります。
+この配布版にはコード署名は付いていません。Windows の Smart App Control による起動可否は環境やファイルの判定によるため、軽量版でもブロックされる場合があります。
 
 ## 使い方
 
@@ -60,6 +60,10 @@ SpaceRunViewer は、テキストファイル内の連続した空白部分を�
 3. 対象にする空白種類を選択します。
 4. `解析` ボタンを押します。
 5. 下段の一覧で、空白の開始桁と文字数を確認します。
+
+### 文字サイズの変更
+
+本文またはルーラー上で `Ctrl` キーを押しながらマウスホイールを回すと、本文・ルーラー・下段の空白一覧（見出しを含む）が同じ倍率で拡大・縮小します。ルーラーは本文と桁位置・横スクロールも同期します。
 
 ### 改行なしの固定長ファイル
 
@@ -99,7 +103,7 @@ dotnet run --project .\SpaceRunViewer.csproj
 #### 軽量版（.NET 8 Desktop Runtime が必要）
 
 ```powershell
-dotnet publish .\SpaceRunViewer.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -p:UseAppHost=true -p:DebugType=None -o .\publish\SpaceRunViewer-v0.1.3-win-x64-framework-dependent
+dotnet publish .\SpaceRunViewer.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=false -p:UseAppHost=true -p:DebugType=None -o .\publish\SpaceRunViewer-v0.1.4-win-x64-framework-dependent
 ```
 
 出力先のフォルダー全体を配布してください。EXE 単体では動作しません。
@@ -107,7 +111,7 @@ dotnet publish .\SpaceRunViewer.csproj -c Release -r win-x64 --self-contained fa
 #### .NET 同梱版
 
 ```powershell
-dotnet publish .\SpaceRunViewer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o .\publish\SpaceRunViewer-v0.1.3-win-x64
+dotnet publish .\SpaceRunViewer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -o .\publish\SpaceRunViewer-v0.1.4-win-x64
 ```
 
 この方法で作る実行ファイルは.NETランタイムを含むため、配布先へ.NETを別途インストールせずに起動できます。

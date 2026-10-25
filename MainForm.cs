@@ -4,7 +4,7 @@ namespace SpaceRunViewer;
 
 public sealed class MainForm : Form
 {
-    private const string AppVersion = "0.1.3";
+    private const string AppVersion = "0.1.4";
     private const int LinePrefixLength = 8;
     private const int PaneMinimumHeight = 40;
     private const int InitialResultGridHeight = 104;
@@ -20,12 +20,15 @@ public sealed class MainForm : Form
     private readonly SyncRichTextBox rulerView = new();
     private readonly SyncRichTextBox textView = new();
     private readonly DataGridView resultGrid = new();
+    private readonly RowStyle rulerRowStyle = new(SizeType.Absolute, 42);
     private readonly Color spaceBackColor = Color.FromArgb(255, 241, 170);
     private readonly Color selectedBackColor = Color.FromArgb(255, 197, 120);
     private readonly string[] startupArgs;
 
     private List<SpaceRun> currentRuns = [];
     private readonly List<int> lineStartPositions = [];
+    private Font? gridZoomFont;
+    private bool syncingZoom;
 
     public MainForm(string[]? args = null)
     {
@@ -37,6 +40,16 @@ public sealed class MainForm : Form
     {
         base.OnShown(e);
         ApplyStartupArgs();
+        SyncDisplayZoom(textView);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        base.Dispose(disposing);
+        if (disposing)
+        {
+            gridZoomFont?.Dispose();
+        }
     }
 
     private void BuildLayout()
@@ -144,7 +157,7 @@ public sealed class MainForm : Form
             Margin = Padding.Empty,
             Padding = Padding.Empty,
         };
-        textPanel.RowStyles.Add(new RowStyle(SizeType.Absolute, 42));
+        textPanel.RowStyles.Add(rulerRowStyle);
         textPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         textPanel.Controls.Add(rulerView, 0, 0);
         textPanel.Controls.Add(textView, 0, 1);
@@ -165,6 +178,7 @@ public sealed class MainForm : Form
         Controls.Add(topPanel);
 
         Load += (_, _) => SetResultGridHeight(splitContainer, InitialResultGridHeight);
+        SyncDisplayZoom(textView);
     }
 
     private static void SetResultGridHeight(SplitContainer splitContainer, int height)
@@ -218,6 +232,8 @@ public sealed class MainForm : Form
         textView.HideSelection = false;
         textView.DetectUrls = false;
         textView.ScrollChanged += (_, _) => SyncRulerScroll();
+        textView.HScroll += (_, _) => SyncRulerScroll();
+        textView.ZoomChanged += (_, _) => SyncDisplayZoom(textView);
     }
 
     private void ConfigureRulerView()
@@ -232,6 +248,7 @@ public sealed class MainForm : Form
         rulerView.BackColor = Color.FromArgb(245, 245, 245);
         rulerView.BorderStyle = BorderStyle.FixedSingle;
         rulerView.TabStop = false;
+        rulerView.ZoomChanged += (_, _) => SyncDisplayZoom(rulerView);
     }
 
     private void ConfigureResultGrid()
@@ -244,6 +261,9 @@ public sealed class MainForm : Form
         resultGrid.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
         resultGrid.MultiSelect = false;
         resultGrid.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        resultGrid.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
+        resultGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+        resultGrid.ColumnHeadersDefaultCellStyle.WrapMode = DataGridViewTriState.False;
         resultGrid.RowHeadersVisible = false;
         resultGrid.Columns.Add("LineNumber", "行番号");
         resultGrid.Columns.Add("RunIndex", "空白No");
@@ -316,8 +336,15 @@ public sealed class MainForm : Form
             var result = TextFileReader.Read(filePathTextBox.Text, encoding, recordByteLength);
             var lines = result.Lines;
             currentRuns = AnalyzeLines(lines);
+            var zoom = textView.ZoomFactor;
             RenderRuler(lines);
             RenderText(lines);
+            // Replacing a RichEdit document can reset its native zoom to 100%.
+            if (textView.ZoomFactor != zoom)
+            {
+                textView.ZoomFactor = zoom;
+            }
+            SyncDisplayZoom(textView);
             RenderGrid();
             var mode = recordByteLength is { } size ? $"固定長 {size:N0} バイト/行 / " : string.Empty;
             var partial = result.PartialRecordBytes > 0 ? $" / 末尾レコード {result.PartialRecordBytes:N0} バイト（指定サイズ未満）" : string.Empty;
@@ -520,6 +547,49 @@ public sealed class MainForm : Form
         textView.Select(start, run.Length);
     }
 
+    private void SyncDisplayZoom(SyncRichTextBox source)
+    {
+        if (syncingZoom)
+        {
+            return;
+        }
+
+        syncingZoom = true;
+        try
+        {
+            var zoom = source.ZoomFactor;
+            if (textView.ZoomFactor != zoom)
+            {
+                textView.ZoomFactor = zoom;
+            }
+            if (rulerView.ZoomFactor != zoom)
+            {
+                rulerView.ZoomFactor = zoom;
+            }
+
+            var gridFontSize = textView.Font.SizeInPoints * zoom;
+            if (gridZoomFont is null || Math.Abs(gridZoomFont.SizeInPoints - gridFontSize) > 0.01f)
+            {
+                var previousFont = gridZoomFont;
+                gridZoomFont = new Font(resultGrid.Font.FontFamily, gridFontSize, resultGrid.Font.Style);
+                resultGrid.Font = gridZoomFont;
+                previousFont?.Dispose();
+            }
+
+            // Keep both ruler lines visible as the native RichEdit zoom changes.
+            var dpiScale = DeviceDpi / 96f;
+            var lineHeight = (float)Math.Ceiling(rulerView.Font.GetHeight(DeviceDpi) * zoom);
+            var verticalChrome = rulerView.Margin.Vertical + rulerView.Height - rulerView.ClientSize.Height;
+            rulerRowStyle.Height = Math.Max(42 * dpiScale,
+                2 * lineHeight + verticalChrome + (float)Math.Ceiling(4 * dpiScale));
+            SyncRulerScroll();
+        }
+        finally
+        {
+            syncingZoom = false;
+        }
+    }
+
     private void SyncRulerScroll()
     {
         var position = textView.GetScrollPosition();
@@ -547,8 +617,11 @@ public sealed class SyncRichTextBox : RichTextBox
     private const int WmMouseWheel = 0x020A;
     private const int EmGetScrollPos = 0x04DD;
     private const int EmSetScrollPos = 0x04DE;
+    private const int EmSetZoom = 0x04E1;
+    private float lastZoomFactor = 1f;
 
     public event EventHandler? ScrollChanged;
+    public event EventHandler? ZoomChanged;
 
     public Point GetScrollPosition()
     {
@@ -566,7 +639,17 @@ public sealed class SyncRichTextBox : RichTextBox
     {
         base.WndProc(ref m);
 
-        if (m.Msg is WmVScroll or WmHScroll or WmMouseWheel)
+        if (m.Msg is EmSetZoom or WmMouseWheel)
+        {
+            var zoom = ZoomFactor;
+            if (zoom != lastZoomFactor)
+            {
+                lastZoomFactor = zoom;
+                ZoomChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        if (m.Msg is WmVScroll or WmHScroll or WmMouseWheel or EmSetScrollPos)
         {
             ScrollChanged?.Invoke(this, EventArgs.Empty);
         }

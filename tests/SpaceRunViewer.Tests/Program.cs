@@ -1,4 +1,6 @@
+using System.Globalization;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using SpaceRunViewer;
 
@@ -11,9 +13,10 @@ internal static class Program
     private static int Main(string[] args)
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        if (args.Length == 3 && args[0] == "--preview")
+        if (args.Length is 3 or 4 && args[0] == "--preview")
         {
-            RenderPreview(args[1], args[2]);
+            var zoom = args.Length == 4 ? float.Parse(args[3], CultureInfo.InvariantCulture) : 1f;
+            RenderPreview(args[1], args[2], zoom);
             return 0;
         }
         testDirectory = Path.Combine(Path.GetTempPath(), "SpaceRunViewer-tests-" + Guid.NewGuid().ToString("N"));
@@ -31,6 +34,7 @@ internal static class Program
             ("固定長モードの改行を拒否", FixedNewlines),
             ("0・負のレコード長を拒否", InvalidSize),
             ("画面の固定長指定・行分離・空白選択", FormIntegration),
+            ("拡大縮小時のルーラー・グリッド・横スクロールの同期", ZoomIntegration),
         };
         var failures = 0;
         try
@@ -162,7 +166,85 @@ internal static class Program
         if (!Field<Label>(form, "summaryLabel").Text.Contains("末尾レコード 2 バイト")) throw new InvalidOperationException("不足サイズの表示がありません。");
     }
 
-    private static void RenderPreview(string input, string output)
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern IntPtr SendMessage(IntPtr handle, int message, IntPtr wParam, IntPtr lParam);
+
+    private static void ZoomIntegration()
+    {
+        using var form = new MainForm();
+        form.StartPosition = FormStartPosition.Manual;
+        form.Location = new Point(-30000, -30000);
+        form.ShowInTaskbar = false;
+        form.Show();
+        Field<TextBox>(form, "filePathTextBox").Text = Write(string.Concat(FixedRecords()));
+        Field<ComboBox>(form, "encodingComboBox").SelectedItem = "UTF-8";
+        Field<CheckBox>(form, "fixedLengthCheckBox").Checked = true;
+        Analyze(form);
+        var body = Field<SyncRichTextBox>(form, "textView");
+        var ruler = Field<SyncRichTextBox>(form, "rulerView");
+        var grid = Field<DataGridView>(form, "resultGrid");
+        var initialRowHeight = grid.Rows[0].Height;
+        var initialHeaderHeight = grid.ColumnHeadersHeight;
+
+        foreach (var zoom in new[] { 2f, 1.5f, 0.75f, 1f })
+        {
+            body.ZoomFactor = zoom;
+            Application.DoEvents();
+            Equal(body.ZoomFactor, ruler.ZoomFactor);
+            if (Math.Abs(body.Font.SizeInPoints * body.ZoomFactor - grid.Font.SizeInPoints) > 0.05f)
+                throw new InvalidOperationException("グリッドの文字サイズが本文の倍率と一致しません。");
+            if (zoom == 2f && (grid.Rows[0].Height <= initialRowHeight || grid.ColumnHeadersHeight <= initialHeaderHeight))
+                throw new InvalidOperationException("グリッドの行・見出しの高さが拡大されません。");
+
+            var scaleStart = ruler.GetFirstCharIndexFromLine(1);
+            var scalePosition = ruler.GetPositionFromCharIndex(scaleStart);
+            if (scalePosition.Y + ruler.Font.GetHeight() * zoom > ruler.ClientSize.Height)
+                throw new InvalidOperationException($"ルーラーの2行目が切れています。倍率={zoom}, Y={scalePosition.Y}, FontHeight={ruler.Font.GetHeight()}, ClientHeight={ruler.ClientSize.Height}, Height={ruler.Height}, DPI={form.DeviceDpi}, RowHeight={Field<RowStyle>(form, "rulerRowStyle").Height}");
+            foreach (var column in new[] { 1, 10, 50, 109 })
+            {
+                var bodyPosition = body.GetPositionFromCharIndex(8 + column - 1);
+                var rulerPosition = ruler.GetPositionFromCharIndex(scaleStart + 8 + column - 1);
+                if (Math.Abs(bodyPosition.X - rulerPosition.X) > 1)
+                    throw new InvalidOperationException($"倍率{zoom}・{column}桁目で本文とルーラーの位置が一致しません。");
+            }
+        }
+
+        // Native EM_SETZOOM and Ctrl+wheel must work without setting a managed property.
+        SendMessage(body.Handle, 0x04E1, new IntPtr(2), new IntPtr(1));
+        Application.DoEvents();
+        Equal(2f, ruler.ZoomFactor);
+        var bodyScroll = new Point(150, 0);
+        body.SetScrollPosition(bodyScroll);
+        Application.DoEvents();
+        if (body.GetScrollPosition().X <= 0)
+            throw new InvalidOperationException("横スクロールの検証が実行されていません。");
+        Equal(body.GetScrollPosition().X, ruler.GetScrollPosition().X);
+        Equal(0, ruler.GetScrollPosition().Y);
+
+        var zoomBeforeWheel = body.ZoomFactor;
+        SendMessage(body.Handle, 0x020A, new IntPtr((120 << 16) | 0x0008), IntPtr.Zero);
+        Application.DoEvents();
+        if (body.ZoomFactor == zoomBeforeWheel)
+            throw new InvalidOperationException("Ctrl+ホイールで倍率が変わりません。");
+        Equal(body.ZoomFactor, ruler.ZoomFactor);
+        if (Math.Abs(body.Font.SizeInPoints * body.ZoomFactor - grid.Font.SizeInPoints) > 0.05f)
+            throw new InvalidOperationException("Ctrl+ホイールでグリッドが追従しません。");
+
+        var zoomBeforeAnalyze = body.ZoomFactor;
+        Analyze(form);
+        Application.DoEvents();
+        Equal(zoomBeforeAnalyze, body.ZoomFactor);
+        Equal(body.ZoomFactor, ruler.ZoomFactor);
+        ruler.ZoomFactor = 1f;
+        Application.DoEvents();
+        Equal(1f, body.ZoomFactor);
+        Analyze(form);
+        Equal(body.ZoomFactor, ruler.ZoomFactor);
+        Equal(2, grid.Rows.Count);
+        form.Close();
+    }
+
+    private static void RenderPreview(string input, string output, float zoom)
     {
         Application.EnableVisualStyles();
         using var form = new MainForm();
@@ -174,6 +256,7 @@ internal static class Program
         Field<ComboBox>(form, "encodingComboBox").SelectedItem = "UTF-8";
         Field<CheckBox>(form, "fixedLengthCheckBox").Checked = true;
         Analyze(form);
+        Field<SyncRichTextBox>(form, "textView").ZoomFactor = zoom;
         Application.DoEvents();
         using var image = new Bitmap(form.Width, form.Height);
         form.DrawToBitmap(image, new Rectangle(Point.Empty, image.Size));
